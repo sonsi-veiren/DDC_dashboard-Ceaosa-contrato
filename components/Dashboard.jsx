@@ -52,7 +52,7 @@ function ConceptCard({ icon: Icon, title, field, valueColor, totalConsolidado, t
         display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 13,
         padding: "12px 0 0", marginTop: 4,
       }}>
-        <span style={{ color: COLOR.label, fontWeight: 600 }}>Total (TC {tc})</span>
+        <span style={{ color: COLOR.label, fontWeight: 600 }}>Total</span>
         <span style={{ fontSize: 20, fontWeight: 700, color: valueColor || COLOR.text, fontVariantNumeric: "tabular-nums" }}>
           USD {fmt(totalConsolidado, 0)}
         </span>
