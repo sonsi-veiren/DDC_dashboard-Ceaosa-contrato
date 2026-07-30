@@ -8,11 +8,15 @@ export default function Page() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/api/resumen")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.error) setError(json.error);
-        else setData(json);
+    Promise.all([
+      fetch("/api/resumen").then((res) => res.json()),
+      fetch("/api/acopios").then((res) => res.json()),
+      fetch("/api/certificados").then((res) => res.json()),
+    ])
+      .then(([resumen, acopios, certificados]) => {
+        const firstError = resumen.error || acopios.error || certificados.error;
+        if (firstError) setError(firstError);
+        else setData({ resumen, acopios, certificados });
       })
       .catch((err) => setError(err.message));
   }, []);
@@ -33,5 +37,5 @@ export default function Page() {
     );
   }
 
-  return <Dashboard data={data} />;
+  return <Dashboard resumen={data.resumen} acopios={data.acopios} certificados={data.certificados} />;
 }

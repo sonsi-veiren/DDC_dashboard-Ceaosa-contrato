@@ -1,6 +1,4 @@
-import * as XLSX from "xlsx";
-import fs from "fs";
-import path from "path";
+import { loadWorkbook, sheet, readNumber, excelDateLabel } from "../../../lib/xlsx";
 
 // ---------------------------------------------------------------------------
 // Celdas de origen de la hoja "Resumen" — ver brief técnico sección 3.1/3.2.
@@ -41,27 +39,6 @@ const CELLS = {
   },
 };
 
-const UNIDADES_CANJE_CELLS = [
-  { unidadCell: "C165", valorCell: "D165" },
-  { unidadCell: "C166", valorCell: "D166" },
-  { unidadCell: "C167", valorCell: "D167" },
-  { unidadCell: "C168", valorCell: "D168" },
-];
-
-function readNumber(ws, addr) {
-  const cell = ws[addr];
-  if (!cell || typeof cell.v !== "number") {
-    throw new Error(`Celda ${addr} no encontrada o no numérica en hoja "Resumen"`);
-  }
-  return cell.v;
-}
-
-function readString(ws, addr) {
-  const cell = ws[addr];
-  if (!cell) throw new Error(`Celda ${addr} no encontrada en hoja "Resumen"`);
-  return String(cell.v);
-}
-
 function readMoneda(ws, cells) {
   const raw = {};
   for (const [key, addr] of Object.entries(cells)) {
@@ -75,27 +52,34 @@ function readMoneda(ws, cells) {
 
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), "data", "detalle_pagos_CEAOSA.xlsx");
-    const buffer = fs.readFileSync(filePath);
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-
-    const sheetName = workbook.SheetNames.includes("Resumen")
-      ? "Resumen"
-      : workbook.SheetNames[0];
-    const ws = workbook.Sheets[sheetName];
+    const workbook = loadWorkbook();
+    const ws = sheet(workbook, "Resumen");
 
     const pesos = readMoneda(ws, CELLS.pesos);
     const usdPlaza = readMoneda(ws, CELLS.usdPlaza);
     const usdCif = readMoneda(ws, CELLS.usdCif);
 
-    const unidadesCanje = UNIDADES_CANJE_CELLS.map(({ unidadCell, valorCell }) => ({
-      unidad: readString(ws, unidadCell),
-      valor: readNumber(ws, valorCell),
-    }));
-
     const tcPlanilla = readNumber(ws, "P1");
 
-    return Response.json({ pesos, usdPlaza, usdCif, unidadesCanje, tcPlanilla });
+    // Ajuste Paramétrico — hoja "AP", columnas AL (Mes certificado) / AM (%
+    // Ajuste), filas 3 a 19. No usar columna S (tiene huecos por una NC de
+    // crédito). Verificado: Z13 ("% Ajuste paramétrico actual") = último
+    // valor de la serie AL/AM.
+    const apWs = workbook.Sheets["AP"];
+    const ajusteParametrico = [];
+    if (apWs) {
+      for (let r = 3; r <= 19; r++) {
+        const mesCell = apWs[`AL${r}`];
+        const pctCell = apWs[`AM${r}`];
+        if (!mesCell || !pctCell) continue;
+        ajusteParametrico.push({
+          mes: excelDateLabel(mesCell.v),
+          pct: pctCell.v * 100,
+        });
+      }
+    }
+
+    return Response.json({ pesos, usdPlaza, usdCif, tcPlanilla, ajusteParametrico });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
