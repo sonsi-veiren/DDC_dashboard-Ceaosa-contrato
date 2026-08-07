@@ -1,6 +1,9 @@
 import { put } from "@vercel/blob";
+import { loadWorkbook } from "../../../lib/xlsx";
 import { BLOB_PATHNAME } from "../../../lib/readExcelSource";
 import { parseResumen } from "../../../lib/parseResumen";
+import { parseAcopios } from "../../../lib/parseAcopios";
+import { parseCertificados } from "../../../lib/parseCertificados";
 
 export async function POST(request) {
   const formData = await request.formData();
@@ -13,7 +16,10 @@ export async function POST(request) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   try {
-    parseResumen(buffer);
+    const workbook = loadWorkbook(buffer);
+    parseResumen(workbook);
+    parseAcopios(workbook);
+    parseCertificados(workbook);
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "No se pudo leer el Excel" },
