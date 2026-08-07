@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
@@ -129,22 +129,83 @@ function AvanceGauge({ label, avance, saldo, total, accent = COLOR.green }) {
   );
 }
 
-export default function Dashboard({ data }) {
+export default function Dashboard() {
+  const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+
   const [tcInput, setTcInput] = useState(String(TC_DEFAULT));
   const tc = Math.max(0.0001, parseFloat(tcInput) || TC_DEFAULT);
 
+  const cargarResumen = () =>
+    fetch("/api/resumen")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.error) throw new Error(json.error);
+        setData(json);
+        return json;
+      });
+
+  useEffect(() => {
+    cargarResumen().catch((err) => setLoadError(err.message));
+  }, []);
+
+  async function handleUploadFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    setUploadStatus(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || "Error subiendo el archivo");
+
+      await cargarResumen();
+      setUploadStatus({ ok: true, text: "Datos actualizados ✓" });
+    } catch (err) {
+      setUploadStatus({ ok: false, text: err.message || "Error subiendo el archivo" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const monedas = useMemo(() => {
+    if (!data) return null;
+    const { pesos, usdPlaza, usdCif } = data;
+    return {
+      pesos: { label: "Pesos", ...pesos },
+      usdPlaza: { label: "USD Plaza", ...usdPlaza },
+      usdCif: { label: "USD CIF", ...usdCif },
+    };
+  }, [data]);
+
+  const consolidado = useMemo(() => {
+    if (!data) return null;
+    return computeConsolidado(tc, data.pesos, data.usdPlaza, data.usdCif);
+  }, [tc, data]);
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 32, fontFamily: "sans-serif", color: COLOR.red }}>
+        Error al leer el archivo Excel: {loadError}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div style={{ padding: 32, fontFamily: "sans-serif", color: COLOR.label }}>
+        Cargando...
+      </div>
+    );
+  }
+
   const { pesos, usdPlaza, usdCif, unidadesCanje } = data;
-
-  const monedas = useMemo(() => ({
-    pesos: { label: "Pesos", ...pesos },
-    usdPlaza: { label: "USD Plaza", ...usdPlaza },
-    usdCif: { label: "USD CIF", ...usdCif },
-  }), [pesos, usdPlaza, usdCif]);
-
-  const consolidado = useMemo(
-    () => computeConsolidado(tc, pesos, usdPlaza, usdCif),
-    [tc, pesos, usdPlaza, usdCif]
-  );
 
   const composicion = [
     { name: "Pago neto", value: consolidado.pagoNeto, color: COLOR.green },
@@ -180,27 +241,54 @@ export default function Dashboard({ data }) {
               CEAOSA / LIV · Hoja &quot;Resumen&quot; · U$S / UYU
             </div>
           </div>
-          <div style={{
-            background: COLOR.card, border: `1px solid ${COLOR.border}`, borderRadius: 10,
-            boxShadow: CARD_SHADOW, padding: "8px 16px", textAlign: "center",
-          }}>
-            <label style={{
-              display: "block", fontSize: 11, color: COLOR.label, fontWeight: 700,
-              textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{
+              background: COLOR.card, border: `1px solid ${COLOR.border}`, borderRadius: 10,
+              boxShadow: CARD_SHADOW, padding: "8px 16px", textAlign: "center",
             }}>
-              TC Referencia
+              <label style={{
+                display: "block", fontSize: 11, color: COLOR.label, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+              }}>
+                TC Referencia
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={tcInput}
+                onChange={(e) => setTcInput(e.target.value)}
+                style={{
+                  width: 72, fontSize: 18, fontWeight: 700, color: COLOR.blue,
+                  border: "none", outline: "none", background: "transparent",
+                  textAlign: "center", padding: 0,
+                }}
+              />
+            </div>
+            <label style={{
+              background: COLOR.card, border: `1px solid ${COLOR.border}`, borderRadius: 10,
+              boxShadow: CARD_SHADOW, padding: "8px 16px", textAlign: "center",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              minWidth: 150, cursor: uploading ? "default" : "pointer",
+            }}>
+              <span style={{
+                display: "block", fontSize: 11, color: COLOR.label, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+              }}>
+                {uploading ? "Subiendo…" : "Subir Excel actualizado"}
+              </span>
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={handleUploadFile}
+                disabled={uploading}
+                style={{ display: "none" }}
+              />
+              {uploadStatus && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: uploadStatus.ok ? COLOR.green : COLOR.red }}>
+                  {uploadStatus.text}
+                </span>
+              )}
             </label>
-            <input
-              type="number"
-              step="0.01"
-              value={tcInput}
-              onChange={(e) => setTcInput(e.target.value)}
-              style={{
-                width: 72, fontSize: 18, fontWeight: 700, color: COLOR.blue,
-                border: "none", outline: "none", background: "transparent",
-                textAlign: "center", padding: 0,
-              }}
-            />
           </div>
         </div>
 
