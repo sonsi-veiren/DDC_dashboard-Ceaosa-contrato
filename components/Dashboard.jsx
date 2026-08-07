@@ -190,50 +190,6 @@ function ComposicionTooltip({ active, payload, total }) {
   );
 }
 
-function AcopioCard({ a, pagado }) {
-  return (
-    <div style={{
-      background: COLOR.card, borderRadius: 14, padding: "18px 20px",
-      border: pagado ? `1px solid ${COLOR.border}` : `1.5px dashed #c7d2fe`,
-      boxShadow: pagado ? CARD_SHADOW : "none", flex: 1, minWidth: 240,
-      opacity: pagado ? 1 : 0.92,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: COLOR.text }}>
-          Acopio {a.num} {a.pct != null ? `(${(a.pct * 100).toFixed(1).replace(".0", "")}%)` : ""}
-        </div>
-        <div style={{
-          fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3,
-          padding: "3px 9px", borderRadius: 999,
-          background: pagado ? "#dcfce7" : "#e0e7ff",
-          color: pagado ? COLOR.green : "#4338ca",
-        }}>
-          {pagado ? "Pagado" : "Proyectado"}
-        </div>
-      </div>
-      <div style={{ fontSize: 12.5, color: COLOR.label, marginBottom: 10 }}>
-        Fecha {pagado ? "de pago" : "estimada"}: <span style={{ fontWeight: 600, color: COLOR.text }}>{a.fecha}</span>
-        {a.opGp && <span> · OP GP {a.opGp}</span>}
-      </div>
-      {[["Pesos", a.pesos], ["USD Plaza", a.usdPlaza], ["USD CIF", a.usdCif]].map(([lab, val]) => (
-        <div key={lab} style={{
-          display: "flex", justifyContent: "space-between", fontSize: 13,
-          padding: "5px 0", borderBottom: `1px solid ${COLOR.border}`,
-        }}>
-          <span style={{ color: COLOR.label }}>{lab}</span>
-          <span style={{ fontWeight: 600, color: COLOR.text }}>{fmt(val, 2)}</span>
-        </div>
-      ))}
-      {pagado && a.desacopioPct != null && (
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 10 }}>
-          <span style={{ color: COLOR.label }}>Nuevo % desacopio</span>
-          <span style={{ fontWeight: 700, color: COLOR.blue }}>{(a.desacopioPct * 100).toFixed(2)}%</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function Dashboard({ resumen, acopios, certificados, uploading, uploadStatus, onUploadFile }) {
   const [tcInput, setTcInput] = useState(String(TC_DEFAULT));
   const tc = Math.max(0.0001, parseFloat(tcInput) || TC_DEFAULT);
@@ -394,19 +350,43 @@ export default function Dashboard({ resumen, acopios, certificados, uploading, u
             Composición del pago y saldo
           </div>
           <div style={{ fontSize: 13, color: COLOR.label, marginBottom: 14 }}>
-            Consolidado, % del contrato · TC {tc}
+            Consolidado, % del contrato
           </div>
-          <ResponsiveContainer width="100%" height={340}>
-            <PieChart>
-              <Pie data={composicion} dataKey="value" nameKey="name" cx="42%" cy="50%"
-                innerRadius={78} outerRadius={135} paddingAngle={2}>
-                {composicion.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip content={<ComposicionTooltip total={consolidado.contrato} />} />
-              <Legend layout="vertical" align="right" verticalAlign="middle" iconSize={14}
-                wrapperStyle={{ fontSize: 16, lineHeight: "34px", fontWeight: 600 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ flex: "1 1 320px", minWidth: 280 }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={composicion} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    innerRadius={78} outerRadius={135} paddingAngle={2}>
+                    {composicion.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip content={<ComposicionTooltip total={consolidado.contrato} />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ flex: "1 1 220px", minWidth: 220 }}>
+              {composicion.map((c) => (
+                <div key={c.name} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "7px 0",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 999, background: c.color, display: "inline-block" }} />
+                    <span style={{ fontSize: 13.5, color: COLOR.text, fontWeight: 500 }}>{c.name}</span>
+                  </div>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: COLOR.text }}>
+                    {pct(c.value, consolidado.contrato)}
+                  </span>
+                </div>
+              ))}
+              <div style={{ borderTop: `1.5px solid ${COLOR.border}`, marginTop: 6, paddingTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800 }}>
+                  <span style={{ color: COLOR.text }}>Total</span>
+                  <span style={{ color: COLOR.text }}>USD {fmt(consolidado.contrato, 0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style={{ fontSize: 17, fontWeight: 700, color: COLOR.text, margin: "26px 0 14px" }}>
@@ -474,20 +454,6 @@ export default function Dashboard({ resumen, acopios, certificados, uploading, u
               accent={COLOR.blue} avanceLabel="Desacopiado" pctLabel="Desacopiado" />
           ))}
         </div>
-
-        <div style={{ fontSize: 17, fontWeight: 700, color: COLOR.text, margin: "6px 0 14px" }}>
-          Etapa 1 — pagado
-        </div>
-        <div style={{ display: "flex", gap: 16, marginBottom: 26, flexWrap: "wrap" }}>
-          {acopios.etapa1.map((a) => <AcopioCard key={a.num} a={a} pagado />)}
-        </div>
-
-        <div style={{ fontSize: 17, fontWeight: 700, color: COLOR.text, margin: "6px 0 14px" }}>
-          Etapa 2 — proyectado para flujo
-        </div>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          {acopios.etapa2.map((a) => <AcopioCard key={a.num} a={a} pagado={false} />)}
-        </div>
         </>
         )}
 
@@ -508,46 +474,14 @@ export default function Dashboard({ resumen, acopios, certificados, uploading, u
 
         <div style={{ display: "flex", gap: 16, marginBottom: 26, flexWrap: "wrap" }}>
           <StatCard icon={BarChart3} label="Certificados emitidos" value={certSel.totales.cantidad}
-            sub={`${CERT_LABELS[certMoneda]} · ver rango en la tabla`} />
+            sub={CERT_LABELS[certMoneda]} />
           <StatCard icon={DollarSign} label="Total facturado (con IVA)" value={fmt(certSel.totales.totalConIva, 0)}
             sub={CERT_LABELS[certMoneda]} valueColor={COLOR.blue} />
-          <StatCard icon={TrendingUp} label="Monto a pagar (total)" value={fmt(certSel.totales.totalMontoPagar, 0)}
-            sub="Después de acopio, garantía, canje y AP" valueColor={COLOR.green} />
-          <StatCard icon={ArrowLeftRight} label="Pagado a la fecha" value={fmt(certSel.totales.totalPagado, 0)}
-            sub="Suma de pagos realizados" valueColor={COLOR.violet} />
+          <StatCard icon={DollarSign} label="Total facturado (sin IVA)" value={fmt(certSel.totales.totalSinIva, 0)}
+            sub={CERT_LABELS[certMoneda]} valueColor={COLOR.blue} />
+          <StatCard icon={ArrowLeftRight} label="Monto pago" value={fmt(certSel.totales.totalPagado + (monedas[certMoneda].apPatronales || 0), 0)}
+            sub="Transferencia + aportes patronales" valueColor={COLOR.violet} />
         </div>
-
-        {certSel.iva ? (
-          <div style={{
-            background: COLOR.card, borderRadius: 14, padding: 20,
-            border: `1px solid ${COLOR.border}`, boxShadow: CARD_SHADOW, marginBottom: 26,
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: COLOR.text, marginBottom: 14 }}>
-              IVA · {CERT_LABELS[certMoneda]}
-            </div>
-            <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
-              {[
-                ["IVA del contrato (22%)", certSel.iva.contrato, COLOR.blue],
-                ["IVA facturado a la fecha", certSel.iva.facturado, COLOR.green],
-                ["IVA pendiente", certSel.iva.pendiente, COLOR.red],
-              ].map(([lab, val, color]) => (
-                <div key={lab}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: COLOR.label, textTransform: "uppercase", letterSpacing: 0.3 }}>
-                    {lab}
-                  </div>
-                  <div style={{ fontSize: 19, fontWeight: 800, color, marginTop: 2 }}>{fmt(val, 0)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={{
-            background: "#fef9c3", borderRadius: 14, padding: "14px 20px",
-            border: "1px solid #fde68a", marginBottom: 26, fontSize: 13, color: "#854d0e",
-          }}>
-            Los certificados en <strong>USD CIF</strong> no facturan IVA (viene en 0 en todos los certificados de esta hoja).
-          </div>
-        )}
 
         <div style={{
           background: COLOR.card, borderRadius: 14, padding: 22,
@@ -585,9 +519,9 @@ export default function Dashboard({ resumen, acopios, certificados, uploading, u
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${COLOR.border}` }}>
-                  {["N°", "Mes", "Fecha pago", "Total (c/IVA)", "Monto a pagar", "Pago", "Nota"].map((h) => (
+                  {["N°", "Mes", "Subtotal", "Total"].map((h) => (
                     <th key={h} style={{
-                      textAlign: h === "N°" || h === "Mes" || h === "Fecha pago" || h === "Nota" ? "left" : "right",
+                      textAlign: h === "N°" || h === "Mes" ? "left" : "right",
                       padding: "8px 10px", color: COLOR.label, fontWeight: 700,
                       textTransform: "uppercase", fontSize: 10.5, letterSpacing: 0.3,
                     }}>
@@ -597,24 +531,30 @@ export default function Dashboard({ resumen, acopios, certificados, uploading, u
                 </tr>
               </thead>
               <tbody>
-                {certSel.list.map((c, i) => (
-                  <tr key={`${c.n}-${i}`} style={{ borderBottom: `1px solid ${COLOR.border}` }}>
+                {certSel.list.map((c) => (
+                  <tr key={c.n} style={{ borderBottom: `1px solid ${COLOR.border}` }}>
                     <td style={{ padding: "8px 10px", fontWeight: 600, color: COLOR.text }}>{c.n}</td>
                     <td style={{ padding: "8px 10px", color: COLOR.label }}>{c.mes}</td>
-                    <td style={{ padding: "8px 10px", color: COLOR.label }}>{c.fechaPago || "—"}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", color: COLOR.text }}>
-                      {c.total != null ? fmt(c.total, 2) : "—"}
+                      {fmt(c.subtotal, 2)}
                     </td>
                     <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600, color: COLOR.text }}>
-                      {fmt(c.montoPagar, 2)}
+                      {fmt(c.total, 2)}
                     </td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: c.pago != null ? COLOR.green : COLOR.label, fontWeight: 600 }}>
-                      {c.pago != null ? fmt(c.pago, 2) : "Aún sin pagar"}
-                    </td>
-                    <td style={{ padding: "8px 10px", color: "#b45309", fontSize: 11.5 }}>{c.nota || ""}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: `2px solid ${COLOR.border}` }}>
+                  <td colSpan={2} style={{ padding: "10px 10px", fontWeight: 800, color: COLOR.text }}>Total</td>
+                  <td style={{ padding: "10px 10px", textAlign: "right", fontWeight: 800, color: COLOR.text }}>
+                    {fmt(certSel.list.reduce((s, c) => s + c.subtotal, 0), 2)}
+                  </td>
+                  <td style={{ padding: "10px 10px", textAlign: "right", fontWeight: 800, color: COLOR.text }}>
+                    {fmt(certSel.list.reduce((s, c) => s + c.total, 0), 2)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
